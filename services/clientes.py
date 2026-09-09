@@ -1,13 +1,20 @@
 from sqlalchemy.orm import Session
 
 from models import Cliente as ClienteModel
-from schemas import ClienteCreate
+from schemas import ClienteCreate, ClienteUpdate
 
 
 def criar_cliente(
     db: Session,
     cliente: ClienteCreate
 ):
+    cliente_existente = db.query(ClienteModel).filter(
+        ClienteModel.email == cliente.email
+    ).first()
+
+    if cliente_existente is not None:
+        return "EMAIL_DUPLICADO"
+
     novo_cliente = ClienteModel(
         nome=cliente.nome,
         email=cliente.email,
@@ -22,9 +29,33 @@ def criar_cliente(
 
 
 def listar_clientes(
-    db: Session
+    db: Session,
+    nome: str | None = None,
+    page: int = 1,
+    limit: int = 10
 ):
-    return db.query(ClienteModel).all()
+    query = db.query(ClienteModel)
+
+    if nome:
+        query = query.filter(
+            ClienteModel.nome.ilike(f"%{nome}%")
+        )
+
+    total = query.count()
+
+    offset = (page - 1) * limit
+
+    clientes = query.offset(offset).limit(limit).all()
+
+    pages = (total + limit - 1) // limit
+
+    return {
+        "clientes": clientes,
+        "page": page,
+        "limit": limit,
+        "total": total,
+        "pages": pages
+    }
 
 
 def buscar_cliente(
@@ -38,7 +69,7 @@ def buscar_cliente(
 def atualizar_cliente(
     db: Session,
     cliente_id: int,
-    cliente: ClienteCreate
+    cliente: ClienteUpdate
 ):
     cliente_db = db.query(ClienteModel).filter(
         ClienteModel.id == cliente_id
